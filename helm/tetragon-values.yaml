@@ -1,0 +1,6 @@
+tetragon:
+  enableK8sAPIAccess: true
+  logLevel: info
+export:
+  enableKafkaExport: false
+  enableJSON: true

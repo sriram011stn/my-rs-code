@@ -1,0 +1,16 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: demo-log-shell-exec
+spec:
+  kprobes:
+  - call: execve
+    syscall: true
+    selectors:
+    - matchBinaries:
+      - operator: In
+        values:
+        - /bin/sh
+        - /usr/bin/sh
+        - /bin/bash
+        - /usr/bin/bash
