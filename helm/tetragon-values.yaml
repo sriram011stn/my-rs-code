@@ -2,5 +2,9 @@ tetragon:
   enableK8sAPIAccess: true
   logLevel: info
 export:
-  enableKafkaExport: false
-  enableJSON: true
+  mode: stdout
+  filenames:
+    - tetragon.log
+  stdout:
+    enabledArgs: true
+    enabledCommand: true

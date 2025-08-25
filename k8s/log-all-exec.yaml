@@ -1,0 +1,10 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: log-all-exec
+spec:
+  kprobes:
+  - call: execve
+    syscall: true
+  - call: execveat
+    syscall: true

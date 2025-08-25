@@ -1,0 +1,25 @@
+# ---- Terraform state ----
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ---- Kind / kube ----
+.kube/
+kind-*
+
+# ---- Logs / tmp ----
+*.log
+*.tmp
+
+# ---- OS / editor cruft ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

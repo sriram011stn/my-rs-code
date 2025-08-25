@@ -1,52 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
+NS="demo"
+SELECTOR="app=demo-app"
+COOLDOWN=8
+DEBUG="${ENFORCER_DEBUG:-1}"
 
-NS_TETRA="kube-system"
-NS_PROTECT="demo"
+command -v jq >/dev/null 2>&1 || { echo "[enforcer] please install jq (sudo apt-get install -y jq)"; exit 1; }
+echo "[enforcer] ns=${NS}, selector=${SELECTOR}, cooldown=${COOLDOWN}s"
 
-COOLDOWN=15   # avoid duplicate deletes for the same pod quickly
+is_shell(){ case "${1##*/}" in sh|bash|ash|dash|zsh) return 0;; *) return 1;; esac; }
 
-command -v jq >/dev/null 2>&1 || { echo "[enforcer] install jq: sudo apt-get install -y jq"; exit 1; }
-
-echo "[enforcer] Following Tetragon DaemonSet logs; protecting namespace: ${NS_PROTECT}"
-echo "[enforcer] Cooldown per pod: ${COOLDOWN}s; acting immediately on interactive shells"
-
-# simple de-dup cache: podName -> lastActionEpoch
-declare -A LAST_ACT
-
-# Follow all Tetragon pods via DaemonSet logs (covers multi-node)
-kubectl -n "$NS_TETRA" logs -f ds/tetragon -c export-stdout --since=1s --tail=10 | \
-while read -r line; do
-  # Only consider execve events
-  [[ "$line" == *'"flags":"execve"'* ]] || continue
-
-  # Parse fields (best-effort)
-  NS=$(echo "$line"  | jq -r '.process_exec.process.pod.namespace // empty' 2>/dev/null || true)
-  POD=$(echo "$line" | jq -r '.process_exec.process.pod.name // empty'      2>/dev/null || true)
-  BIN=$(echo "$line" | jq -r '.process_exec.process.binary // empty'         2>/dev/null || true)
-  ARGS=$(echo "$line"| jq -r '.process_exec.process.arguments // ""'         2>/dev/null || true)
-
-  [[ -n "$NS" && -n "$POD" && -n "$BIN" ]] || continue
-  [[ "$NS" == "$NS_PROTECT" ]] || continue
-
-  # Only act on likely interactive shells (not scripts with -c)
-  case "$BIN" in
-    /bin/sh|/usr/bin/sh|/bin/bash|/usr/bin/bash|/bin/ash|/usr/bin/ash|/bin/dash|/usr/bin/dash) ;;
-    *) continue ;;
-  esac
-  if echo "$ARGS" | grep -q -- ' -c '; then
-    # non-interactive shell (script/init) — ignore
-    continue
+choose_stream() {
+  local pod
+  pod=$(kubectl -n kube-system get pods -l app.kubernetes.io/name=tetragon -o jsonpath='{.items[0].metadata.name}')
+  [[ -n "$pod" ]] || { echo "[enforcer] no tetragon pod"; exit 1; }
+  if kubectl -n kube-system logs "$pod" -c export-stdout --since=5s --tail=1 >/dev/null 2>&1; then
+    echo "[enforcer] using export-stdout logs"
+    kubectl -n kube-system logs -f ds/tetragon -c export-stdout --since=2s --tail=0
+  else
+    echo "[enforcer] using tetragon (agent) logs"
+    kubectl -n kube-system logs -f "$pod" -c tetragon --since=2s --tail=0
   fi
+}
 
-  now=$(date +%s)
-  last=${LAST_ACT[$POD]:-0}
-  if (( now - last < COOLDOWN )); then
-    # recently acted on this pod; skip duplicates
-    continue
+last=0
+choose_stream | while IFS= read -r line; do
+  case "$line" in *process_exec*|*execve*|*kprobe_event* ) ;; *) continue ;; esac
+  ns=$(echo "$line"  | jq -r '.process_exec.process.pod.namespace // .kprobe_event.pod.namespace // .k8s.namespace // empty' 2>/dev/null || true)
+  pod=$(echo "$line" | jq -r '.process_exec.process.pod.name      // .kprobe_event.pod.name      // .k8s.podName  // empty' 2>/dev/null || true)
+  bin=$(echo "$line" | jq -r '.process_exec.process.binary        // .process.binary              // empty'       2>/dev/null || true)
+  args=$(echo "$line"| jq -r '.process_exec.process.arguments     // .process.arguments           // ""'          2>/dev/null || true)
+  [[ "$DEBUG" == "1" ]] && echo "[dbg] ns=${ns:-_} pod=${pod:-_} bin=${bin:-_} args='${args}'"
+  [[ -n "$bin" ]] || continue
+  is_shell "$bin" || continue
+  echo " $args " | grep -q ' -c ' && continue
+  now=$(date +%s); (( now - last < COOLDOWN )) && { [[ "$DEBUG" == "1" ]] && echo "[dbg] cooldown"; continue; }; last=$now
+  if [[ -n "$ns" && -n "$pod" && "$ns" == "$NS" ]]; then
+    echo "[enforcer] deleting ${ns}/${pod}"
+    kubectl -n "$ns" delete pod "$pod" --grace-period=0 --force >/dev/null 2>&1 || true
+  else
+    echo "[enforcer] fallback: delete by label ${NS}/${SELECTOR}"
+    kubectl -n "$NS" get pods -l "$SELECTOR" -o name | xargs -r kubectl -n "$NS" delete --grace-period=0 --force >/dev/null 2>&1 || true
   fi
-  LAST_ACT[$POD]=$now
-
-  echo "[enforcer] Interactive shell detected -> deleting: ${NS}/${POD} (BIN=${BIN} ARGS='${ARGS}')"
-  kubectl -n "$NS" delete pod "$POD" --grace-period=0 --force >/dev/null 2>&1 || true
 done
