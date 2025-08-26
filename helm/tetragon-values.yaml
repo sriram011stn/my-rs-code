@@ -1,10 +1,35 @@
 tetragon:
   enableK8sAPIAccess: true
   logLevel: info
+  
+  # Enable process ancestry for better tracking
+  enableProcessAncestors: true
+  enableProcessNs: true
+  
+  # Export settings
+  export:
+    mode: stdout
+    stdout:
+      enabledCommand: true
+      enabledArgs: true
+    
+  # Resource limits for stability
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+# Export container configuration
+tetragonOperator:
+  enabled: true
+  
 export:
+  enabled: true
   mode: stdout
-  filenames:
-    - tetragon.log
   stdout:
-    enabledArgs: true
+    enabled: true
     enabledCommand: true
+    enabledArgs: true

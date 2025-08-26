@@ -4,7 +4,27 @@ metadata:
   name: log-all-exec
 spec:
   kprobes:
-  - call: execve
+  - call: "sys_execve"
     syscall: true
-  - call: execveat
+    args:
+    - index: 0
+      type: "string"
+    returnArg:
+      type: "int"
+      index: 0
+    selectors:
+    - matchActions:
+      - action: Post
+  - call: "sys_execveat"
     syscall: true
+    args:
+    - index: 0
+      type: "int"
+    - index: 1
+      type: "string"
+    returnArg:
+      type: "int"
+      index: 0
+    selectors:
+    - matchActions:
+      - action: Post

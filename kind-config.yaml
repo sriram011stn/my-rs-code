@@ -4,9 +4,32 @@ nodes:
 - role: control-plane
   kubeadmConfigPatches:
   - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        pod-infra-container-image: registry.k8s.io/pause:3.9
+  - |
     kind: ClusterConfiguration
     apiServer:
       extraArgs:
-        enable-admission-plugins: NodeRestriction
+        enable-admission-plugins: NodeRestriction,ResourceQuota
+        audit-log-maxage: "30"
+        audit-log-maxbackup: "3"
+        audit-log-maxsize: "100"
 - role: worker
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        pod-infra-container-image: registry.k8s.io/pause:3.9
 - role: worker
+  kubeadmConfigPatches:
+  - |
+    kind: JoinConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        pod-infra-container-image: registry.k8s.io/pause:3.9
+networking:
+  podSubnet: "10.244.0.0/16"
+  serviceSubnet: "10.96.0.0/12"
