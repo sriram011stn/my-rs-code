@@ -13,9 +13,9 @@ echo -e "${GREEN}[enforcer] Starting IMMEDIATE enforcer${NC}"
 delete_pod() {
     local pod_name=$1
     echo -e "${RED}[enforcer] IMMEDIATE KILL: ${pod_name}${NC}"
-    # Force immediate termination
+    
     kubectl --context kind-tf-immu -n "$NS" delete pod "$pod_name" --grace-period=0 --force --now &
-    # Also try to disrupt the process directly
+    
     kubectl --context kind-tf-immu -n "$NS" exec "$pod_name" -- kill -9 -1 2>/dev/null &
 }
 
