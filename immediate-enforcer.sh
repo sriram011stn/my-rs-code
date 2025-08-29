@@ -22,7 +22,6 @@ delete_pod() {
 tetragon_pod=$(kubectl --context kind-tf-immu -n kube-system get pods -l app.kubernetes.io/name=tetragon -o jsonpath='{.items[0].metadata.name}')
 echo "[enforcer] Monitoring: $tetragon_pod"
 
-# Monitor with immediate processing
 kubectl --context kind-tf-immu -n kube-system logs -f "$tetragon_pod" -c export-stdout --tail=0 --timestamps | while read -r line; do
     if [[ "$line" =~ \{.*demo.*\} ]]; then
         echo "[debug] Demo event detected"
