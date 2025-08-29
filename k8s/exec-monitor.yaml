@@ -1,0 +1,16 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: exec-monitor
+spec:
+  kprobes:
+  - call: "sys_execve"
+    syscall: true
+    selectors:
+    - matchNamespaces:
+      - namespace: demo
+  - call: "sys_execveat"  
+    syscall: true
+    selectors:
+    - matchNamespaces:
+      - namespace: demo

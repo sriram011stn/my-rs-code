@@ -1,0 +1,8 @@
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: simple-exec
+spec:
+  kprobes:
+  - call: "sys_execve"
+    syscall: true
